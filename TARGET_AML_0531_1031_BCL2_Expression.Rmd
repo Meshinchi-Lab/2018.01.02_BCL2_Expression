@@ -1,0 +1,380 @@
+---
+title: "BCL2 in Adult and Ped AML"
+author: "Jenny Smith"
+date: "December 22, 2017"
+output: html_document
+---
+
+#Set-up
+
+```{r setup}
+library(knitr)
+knitr::opts_chunk$set(tidy.opts=list(width.cutoff=50),tidy=TRUE, fig.align='center', fig.height = 8, fig.width = 10)
+knitr::opts_knit$set(root.dir = '/fh/fast/meshinchi_s/workingDir/TARGET/AML_TARGET/RNA/mRNAseq/analysis/2018.01.02_BCL2_Expression/')
+```
+
+
+
+```{r message=FALSE}
+library(dplyr)
+library(magrittr)
+library(ggplot2)
+library(stringr)
+library(reshape2)
+library(tidyr)
+library(tibble)
+library(ggpubr)
+getwd()
+```
+
+
+```{r}
+source("~/scripts/RNAseq_Analysis/Waterfallplots/Waterfall_Barplot_Function_2017.05.22.r")
+source("~/scripts/RNAseq_Analysis/DifferentialExpn_PathwayAnalysis/ggplot_Themes_Function.r")
+```
+
+
+#Read in the CDEs 
+
+```{r}
+# AML1031 <- read.csv("~/reference_mapping-files/TARGET_AML_1031_CDE_cleaned_12.2.2017.csv",
+#                     stringsAsFactors = FALSE, row.names = 1)
+
+
+AML1031 <- read.csv("~/reference_mapping-files/TARGET_AML_0531_1031_merged_CDEs_1.10.19.csv",
+                    stringsAsFactors = FALSE)
+
+
+AML1031 <- AML1031 %>%
+  filter(!is.na(USI)) %>% 
+  set_rownames(.$USI)
+
+head(AML1031[,1:5])
+dim(AML1031)
+```
+
+
+```{r}
+# AML0531 <- read.csv("~/reference_mapping-files/TARGET_AML_CDEs_withFusionCols_11.16.2017.csv", 
+#                     stringsAsFactors = FALSE)
+AML0531 <- read.csv("~/reference_mapping-files/TARGET_AML_current_asof_june30_2016_UPDATED_CLEAN_1.10.19.csv", 
+                    stringsAsFactors = FALSE)
+
+head(AML0531[,1:5])
+# dim(AML0531) #1000 by 90
+```
+
+
+
+
+#Read in the expression data 
+
+```{r}
+LD.0531 <- read.csv("~/RNA_seq_Analysis/0000.00.03_Expression_Matrices/TARGET_AML_AAML0531_dupGenesRemoved_TPM.csv", stringsAsFactors = FALSE, row.names = 1)
+
+head(LD.0531[,1:5])
+# dim(LD.0531) #494 samples
+```
+
+```{r}
+HD.0531 <- read.csv("~/RNA_seq_Analysis/0000.00.03_Expression_Matrices/TARGET_AML_DxSamples_dupGenesRemoved_TPM_Aug2014.csv",
+                    stringsAsFactors = FALSE, row.names = 1)
+
+colnames(HD.0531) <- str_split_fixed(colnames(HD.0531), "\\.", n=5)[,3]
+
+head(HD.0531[,1:5])
+# dim(HD.0531) 51,482 genes by 160 samples
+```
+
+
+```{r}
+HD.1031 <- read.csv("~/RNA_seq_Analysis/0000.00.03_Expression_Matrices/TARGET_AML_AAML1031_dupGenesRemoved_TPM.csv", 
+                    stringsAsFactors = FALSE, row.names = 1)
+
+head(HD.1031[,1:5])
+# dim(HD.1031) #1111 samples
+```
+
+
+
+```{r}
+TCGA_Targ <- get(load("~/RNA_seq_Analysis/0000.00.03_Expression_Matrices/TcgaTargetGtex_NormBlood_AML_rsem_geneSymbol_dupGenesRemoved_tpm.RData"))
+
+head(TCGA_Targ[,1:5])
+# dim(TCGA_Targ) 58,531 and 738  samples
+```
+
+
+#Waterfall plots with BCL2
+
+```{r}
+pheno.0531 <- ifelse(grepl("^BM", colnames(LD.0531)), "NBM", "AML") %>%
+  set_names(colnames(LD.0531))
+
+table(pheno.0531)
+```
+
+```{r}
+# tiff("BCL2_LowDepth_0531_TPM_waterfallplot.tiff", height = 5, width = 8, units = "in", res=600)
+p <- waterfallPlot(LD.0531, "BCL2", pheno.0531, unit="TPM")
+p + ylim(c(0,150))
+# dev.off()
+```
+
+
+```{r}
+quantile(as.numeric(LD.0531["BCL2",]))
+```
+
+
+```{r}
+pheno.1031 <- ifelse(grepl("^BM|^RO", colnames(HD.1031)), "NBM", "AML") %>%
+  set_names(colnames(HD.1031))
+
+
+table(pheno.1031)
+```
+
+
+```{r}
+# tiff("BCL2_1031_TPM_waterfallplot.tiff", height = 5, width = 8, units = "in", res=600)
+waterfallPlot(HD.1031, "BCL2", pheno.1031, unit="TPM")
+# dev.off()
+```
+
+```{r}
+quantile(as.numeric(HD.1031["BCL2",]))
+# log2 <- log2(as.numeric(HD.1031["BCL2",])+1)
+# quantile(log2)
+```
+
+
+```{r}
+pheno.toil <- ifelse(grepl("GTEX", colnames(subset)), "Normal.WholeBlood", 
+                     ifelse(grepl("TARGET", colnames(subset)), "TARGET.AML", "TCGA.AML")) %>%
+  set_names(colnames(subset))
+
+table(pheno.toil)
+```
+
+```{r}
+# tiff("BCL2_TCGA_TPM_waterfallplot.tiff", height = 5, width = 8, units = "in", res=600)
+waterfallPlot(subset,"BCL2", pheno.toil, unit="TPM")
+# dev.off()
+```
+
+```{r}
+BCL2.TCGA <- as.numeric(subset["BCL2", grep("TCGA", colnames(subset))])
+
+quantile(BCL2.TCGA)
+```
+
+
+
+#Combine the TCGA with LD 0531 and HD 1031 RNAseq 
+
+```{r}
+intersect(colnames(LD.0531), colnames(HD.1031))
+intersect(colnames(LD.0531), colnames(HD.0531))
+intersect(colnames(HD.0531), colnames(HD.1031))
+
+Reduce(intersect, list(colnames(HD.0531), colnames(HD.1031), colnames(LD.0531))) #none in all three
+```
+
+Need to examine how expression changes from one seq run to the next. 
+
+```{r}
+#Update 0531 and 1031 with informative colnames for replicate samples
+replicates <- c("PATESX","PASLTF","PASBHI", "PARAJX", "PASVYL", "PASVVS","PARBIU","PASIEJ")
+
+
+LD.dups <- which(colnames(LD.0531) %in% replicates)
+colnames(LD.0531)[LD.dups] <- paste0(colnames(LD.0531)[LD.dups], ".LD.0531")
+
+HD.dups <- which(colnames(HD.1031) %in% replicates)
+colnames(HD.1031)[HD.dups] <- paste0(colnames(HD.1031)[HD.dups], ".HD.1031")
+
+HD.dups2 <- which(colnames(HD.0531) %in% replicates)
+colnames(HD.0531)[HD.dups2] <- paste0(colnames(HD.0531)[HD.dups2], ".HD.0531")
+```
+
+
+```{r}
+BCL2.TARG.TCGA <- bind_cols(LD.0531["BCL2", grepl("^PA", colnames(LD.0531))],
+                        HD.0531["BCL2", grepl("^PA", colnames(HD.0531))],
+                        HD.1031["BCL2",grepl("^PA", colnames(HD.1031))],
+                        subset["BCL2", grepl("TCGA", colnames(subset))]) %>%
+  gather(var,value) %>%
+  
+  mutate(Group=ifelse(var %in% colnames(HD.0531), "HD.0531", 
+                      ifelse(var %in% colnames(LD.0531), "LD.0531",
+                             ifelse(var %in% colnames(HD.1031), "HD.1031","TCGA")))) %>%
+  
+  mutate(Log2.TPM=log2(value+1)) %>%
+  mutate(Group=factor(Group, levels = c("LD.0531","HD.0531", "HD.1031","TCGA")))
+
+
+
+head(BCL2.TARG.TCGA)
+# dim(BCL2.TARG.TCGA) #1,856 samples
+```
+
+```{r}
+table(BCL2.TARG.TCGA$Group)
+```
+
+
+```{r fig.height=5}
+# comp <- list(c(""))
+vplot <- ggboxplot(BCL2.TARG.TCGA, x="Group", y="Log2.TPM",
+         fill="Group") +
+  theme_numX 
+  # stat_compare_means(comparisons = comp)
+
+# tiff("BCL2_TARGET_3Cohorts_TCGA_boxplot.tiff",height = 5, width = 8, units="in", res=600 )
+ggpar(vplot, font.legend = c(18, "plain", "black")) 
+# dev.off()
+```
+
+
+```{r}
+# tiff("BCL2_LD.0531_HD.1031_SamePatient_TPM_barplot.tiff", height = 8, width=10, units = "in", res=600)
+regex <- paste(replicates, collapse ="|")
+
+
+
+ggplot(BCL2.TARG.TCGA[grepl(regex,BCL2.TARG.TCGA$var),], aes(x=var, y=value, fill=Group)) +
+  geom_bar(stat = "identity") +
+  theme_JS +
+  labs(x="", y="TPM")
+
+# dev.off()
+```
+
+
+#Boxplots with TCGA and TARGET  using TOIL dataset
+
+```{r}
+forDist <- subset %>%
+  rownames_to_column("gene") %>%
+  filter(gene == "BCL2") %>%
+  select(-gene) %>%
+  gather(var, value) %>%
+  mutate(log2.TPM=log2(value+1)) %>%
+  mutate(Group=ifelse(grepl("GTEX", var), "Normal.WholeBlood", 
+                     ifelse(grepl("TARGET", var), "TARGET.AML", "TCGA.AML"))) %>%
+  mutate(Group=factor(Group, levels=c("Normal.WholeBlood","TARGET.AML", "TCGA.AML" )))
+  
+
+# forDist
+table(forDist$Group)
+```
+
+
+```{r}
+comparisons <- list(c("Normal.WholeBlood","TARGET.AML"),
+                    c("TARGET.AML", "TCGA.AML" ),
+                    c("Normal.WholeBlood","TCGA.AML" ))
+
+ggboxplot(forDist, x="Group", y="log2.TPM", color="Group", palette="jco") +
+  stat_compare_means(comparisons = comparisons) +
+  ylim(0,10) +
+  stat_compare_means(label.y = 9.5)
+
+```
+
+
+```{r}
+# tiff("BCL2_TCGA_TARGET_GTEX_TPM_waterfallplot.tiff", height = 5, width = 8, units = "in", res=600)
+ggviolin(forDist, x="Group", y="log2.TPM", fill="Group", 
+         palette = c("#00AFBB", "#E7B800", "#FC4E07"),color = "Group",
+         add="boxplot", add.params = list(color="black",fill="white")) +
+  stat_compare_means(comparisons = comparisons) +
+  stat_compare_means(label.y = 9.5)
+# dev.off()
+```
+
+
+#Violin Plots with CBFA2T3-GLIS2 
+
+```{r}
+AML1031 <- AML1031 %>%
+  mutate_at(vars(CBFA2T3.GLIS2), funs(ifelse(.=="Intermediate", "Yes", .)))
+
+
+table(AML1031$CBFA2T3.GLIS2)
+table(AML1031$Rare.Fusions)
+```
+
+
+
+```{r}
+GLIS2.1031 <- HD.1031 %>%
+  rownames_to_column("gene") %>%
+  filter(gene == "BCL2") %>%
+  gather(USI, TPM,-gene) %>%
+  mutate(log2.TPM=log2(TPM+1))  %>%
+  left_join(., select(AML1031, USI,CBFA2T3.GLIS2,Rare.Fusions ), by="USI") %>%
+  mutate(Group=ifelse(grepl("BM[0-9]|RO[0-9]",USI), "NBM", "AML")) %>%
+  mutate_at(vars(CBFA2T3.GLIS2,Rare.Fusions), funs(ifelse(Group=="NBM", "NBM", .)))
+  
+
+head(GLIS2.1031)
+table(GLIS2.1031$Group, useNA = "always")
+table(GLIS2.1031$Rare.Fusions)
+```
+
+
+```{r}
+comparisons <- list(c("CBFA2T3.GLIS2","NBM"),
+                    c("CBFA2T3.GLIS2", "OtherAML" ))
+
+# ggboxplot(GLIS2.1031, x="Rare.Fusions", y="log2.TPM", color="Rare.Fusions", palette="jco") +
+#   lims(y=c(0,9.0)) +
+#   stat_compare_means(comparisons = comparisons, label.y = 8.0)
+
+```
+
+
+```{r}
+library(RColorBrewer)
+```
+
+```{r}
+# tiff("BCL2_TCGA_TARGET_GTEX_TPM_waterfallplot.tiff", height = 5, width = 8, units = "in", res=600)
+ggviolin(GLIS2.1031, x="Rare.Fusions", y="log2.TPM", fill="Rare.Fusions", 
+          palette = brewer.pal(9, "Set1"), color = "Rare.Fusions",
+         add="boxplot", add.params = list(color="black",fill="white")) +
+  lims(y=c(-1.5,10.0)) +
+  labs(x="", title="BCL2 Expression in CBFA2T3-GLIS2") +
+  stat_compare_means(comparisons = comparisons, label.y = c(8.8, 8.3)) +
+  theme(axis.text.x = element_text(angle=25, vjust = 1, hjust = 1))
+
+
+# dev.off()
+```
+
+
+
+```{r}
+png("BCL2_in_CBFGLIS_OtherAML_NBM_violinplot.png", height = 5, width = 6.5, units = "in", res=600)
+
+ggviolin(GLIS2.1031, x="CBFA2T3.GLIS2", y="log2.TPM", fill="CBFA2T3.GLIS2", 
+          palette = brewer.pal(8, "Set1"), color = "CBFA2T3.GLIS2",
+         add="boxplot", add.params = list(color="black",fill="white")) +
+  lims(y=c(-1.5,10.0)) +
+  labs(x="", title="BCL2 Expression in CBFA2T3-GLIS2") +
+  stat_compare_means(label=paste0("p=", "p.format"),
+                     comparisons = list(c("Yes","NBM"),c("Yes", "No")), 
+                                        label.y = c(8.9, 8.3)) +
+  guides(colour = "none", fill="none") +
+  scale_x_discrete(labels=c("NBM","OtherAML", "CBFA2T3.GLIS2")) +
+  theme(axis.text.x = element_text(angle=25, vjust = 1, hjust = 1, size=18), 
+        axis.text.y = element_text(size=18), 
+        plot.title = element_text(size=20))
+
+# png()
+dev.off()
+```
+
+
